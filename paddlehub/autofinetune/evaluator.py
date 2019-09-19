@@ -108,8 +108,9 @@ class BaseEvaluator(object):
 
 
 class FullTrailEvaluator(BaseEvaluator):
-    def __init__(self, params_file, finetunee_script):
+    def __init__(self, params_file, finetunee_script, script_args):
         super(FullTrailEvaluator, self).__init__(params_file, finetunee_script)
+        self.script_args = script_args
 
     def run(self, *args):
         params = args[0][0]
@@ -125,11 +126,35 @@ class FullTrailEvaluator(BaseEvaluator):
         f.close()
 
         if is_windows():
-            run_cmd = "set FLAGS_eager_delete_tensor_gb=0.0&set CUDA_VISIBLE_DEVICES=%s&python -u %s --checkpoint_dir=%s %s >%s 2>&1" % \
-                    (num_cuda, self.finetunee_script, ckpt_dir, param_str, log_file)
+            run_cmd = "set FLAGS_eager_delete_tensor_gb=0.0&set CUDA_VISIBLE_DEVICES=%s&python -u %s --checkpoint_dir=%s --use_auto_finetune=True --model_save_dir=%s --data_dir=%s --use_pretrained=%s --checkpoint=%s --save_step=%s --model=%s --image_h=%s --image_w=%s --lr_strategy=%s --resize_short_size=%s --use_default_mean_std=%s %s >%s 2>&1" % \
+                    (num_cuda, self.finetunee_script, ckpt_dir, \
+                     self.script_args.model_save_dir, \
+                     self.script_args.data_dir, \
+                     self.script_args.use_pretrained, \
+                     self.script_args.checkpoint, \
+                     self.script_args.save_step, \
+                     self.script_args.model, \
+                     self.script_args.image_h, \
+                     self.script_args.image_w, \
+                     self.script_args.lr_strategy, \
+                     self.script_args.resize_short_size, \
+                     self.script_args.use_default_mean_std, \
+                     param_str, log_file)
         else:
-            run_cmd = "export FLAGS_eager_delete_tensor_gb=0.0; export CUDA_VISIBLE_DEVICES=%s; python -u %s --checkpoint_dir=%s %s >%s 2>&1" % \
-                    (num_cuda, self.finetunee_script, ckpt_dir, param_str, log_file)
+            run_cmd = "export FLAGS_eager_delete_tensor_gb=0.0; export CUDA_VISIBLE_DEVICES=%s; python -u %s --checkpoint_dir=%s --use_auto_finetune=True --model_save_dir=%s --data_dir=%s --use_pretrained=%s --checkpoint=%s --save_step=%s --model=%s --image_h=%s --image_w=%s --lr_strategy=%s --resize_short_size=%s --use_default_mean_std=%s %s >%s 2>&1" % \
+                    (num_cuda, self.finetunee_script, ckpt_dir, \
+                     self.script_args.model_save_dir, \
+                     self.script_args.data_dir, \
+                     self.script_args.use_pretrained, \
+                     self.script_args.checkpoint, \
+                     self.script_args.save_step, \
+                     self.script_args.model, \
+                     self.script_args.image_h, \
+                     self.script_args.image_w, \
+                     self.script_args.lr_strategy, \
+                     self.script_args.resize_short_size, \
+                     self.script_args.use_default_mean_std, \
+                     param_str, log_file)
 
         try:
             os.system(run_cmd)
@@ -151,6 +176,7 @@ class ModelBasedEvaluator(BaseEvaluator):
         super(ModelBasedEvaluator, self).__init__(params_file, finetunee_script)
         self.half_best_model_ckpt = []
         self.run_count = 0
+        self.script_args = script_args
 
     def run(self, *args):
         params = args[0][0]
@@ -169,10 +195,10 @@ class ModelBasedEvaluator(BaseEvaluator):
             model_path = self.half_best_model_ckpt[self.run_count % len(
                 self.half_best_model_ckpt)] + "/best_model"
             if is_windows():
-                run_cmd = "set FLAGS_eager_delete_tensor_gb=0.0&set CUDA_VISIBLE_DEVICES=%s&python -u %s --epochs=1 --model_path %s --checkpoint_dir=%s %s >%s 2>&1" % \
+                run_cmd = "set FLAGS_eager_delete_tensor_gb=0.0&set CUDA_VISIBLE_DEVICES=%s&python -u %s --epochs=1 --model_path=%s --checkpoint_dir=%s %s >%s 2>&1" % \
                         (num_cuda, self.finetunee_script, model_path, ckpt_dir, param_str, log_file)
             else:
-                run_cmd = "export FLAGS_eager_delete_tensor_gb=0.0; export CUDA_VISIBLE_DEVICES=%s; python -u %s --epochs=1 --model_path %s --checkpoint_dir=%s %s >%s 2>&1" % \
+                run_cmd = "export FLAGS_eager_delete_tensor_gb=0.0; export CUDA_VISIBLE_DEVICES=%s; python -u %s --epochs=1 --model_path=%s --checkpoint_dir=%s %s >%s 2>&1" % \
                         (num_cuda, self.finetunee_script, model_path, ckpt_dir, param_str, log_file)
         else:
             if is_windows():

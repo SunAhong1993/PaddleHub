@@ -91,7 +91,64 @@ class AutoFineTuneCommand(BaseCommand):
             type=str,
             default="HAZero",
             help="Choices: HAZero or PSHE2.")
-
+    
+    def add_python_config_arg(self):
+        self.arg_script_config.add_argument(
+            "--model_save_dir",
+            type=str,
+            default='./output',
+            help="the best model save dir")
+        self.arg_script_config.add_argument(
+            "--data_dir",
+            type=str,
+            default='./data/ILSVRC2012/',
+            help="the training data dir")
+        self.arg_script_config.add_argument(
+            "--use_pretrained",
+            type=bool,
+            default=True,
+            help="whether to use pretrained model")
+        self.arg_script_config.add_argument(
+            "--checkpoint",
+            type=str,
+            default=None,
+            help="whether to resume checkpoint")
+        self.arg_script_config.add_argument(
+            "--save_step",
+            type=int,
+            default=1,
+            help="the steps interval to save checkpoints")
+        self.arg_script_config.add_argument(
+            "--model",
+            type=str,
+            default='ResNet50',
+            help="the name of network")
+        self.arg_script_config.add_argument(
+            "--image_h",
+            type=int,
+            default=224,
+            help="the input image h")
+        self.arg_script_config.add_argument(
+            "--image_w",
+            type=int,
+            default=224,
+            help="the input image w")
+        self.arg_script_config.add_argument(
+            "--lr_strategy",
+            type=str,
+            default='piecewise_decay',
+            help="the learning rate decay strategy")
+        self.arg_script_config.add_argument(
+            "--resize_short_size",
+            type=int,
+            default=256,
+            help="the value of resize_short_size")
+        self.arg_script_config.add_argument(
+            "--use_default_mean_std",
+            type=bool,
+            default=False,
+            help="whether to use label_smoothing")
+        
     def execute(self, argv):
         if not argv:
             print("ERROR: Please specify a script to be finetuned in python.\n")
@@ -109,9 +166,15 @@ class AutoFineTuneCommand(BaseCommand):
             description=
             "Autofintune configuration for controlling autofinetune behavior, not required"
         )
+        self.arg_script_config = self.parser.add_argument_group(
+            title="Python script config options",
+            description=
+            "Python script configuration for controlling autofinetune behavior, part required"
+        )
 
         self.add_params_file_arg()
         self.add_autoft_config_arg()
+        self.add_python_config_arg()
 
         if not argv[1:]:
             self.help()
@@ -120,10 +183,12 @@ class AutoFineTuneCommand(BaseCommand):
         self.args = self.parser.parse_args(argv[1:])
         if self.args.evaluate_choice.lower() == "fulltrail":
             evaluator = FullTrailEvaluator(self.args.param_file,
-                                           self.fintunee_script)
+                                           self.fintunee_script,
+                                           self.args)
         elif self.args.evaluate_choice.lower() == "modelbased":
             evaluator = ModelBasedEvaluator(self.args.param_file,
-                                            self.fintunee_script)
+                                            self.fintunee_script,
+                                            self.args)
         else:
             raise ValueError(
                 "The evaluate %s is not defined!" % self.args.evaluate_choice)
@@ -158,6 +223,31 @@ class AutoFineTuneCommand(BaseCommand):
 
         with open("./log_file.txt", "w") as f:
             best_hparams = evaluator.convert_params(autoft.get_best_hparams())
+            print('-----------------------')
+            print('Train to get teh best model!')
+            lr = best_hparams[0]
+            batch_size= best_hparams[1]
+            num_epochs = best_hparams[2]
+            gpu_id = int(self.args.cuda[0])
+            run_cmd = "python run.py --gpu_id=%s --model_save_dir=%s --data_dir=%s --use_pretrained=%s --checkpoint=%s --save_step=%s --model=%s --image_h=%s --image_w=%s --lr_strategy=%s --resize_short_size=%s --use_default_mean_std=%s --lr=%s --batch_size=%s --num_epochs=%s >%s 2>&1" % \
+            (gpu_id, \
+             self.args.model_save_dir, \
+             self.args.data_dir, \
+             self.args.use_pretrained, \
+             self.args.checkpoint, \
+             self.args.save_step, \
+             self.args.model, \
+             self.args.image_h, \
+             self.args.image_w, \
+             self.args.lr_strategy, \
+             self.args.resize_short_size, \
+             self.args.use_default_mean_std, \
+             lr, \
+             batch_size, \
+             num_epochs, \
+             os.path.join(self.args.model_save_dir, 'best_model_log.txt'))
+            os.system(run_cmd)
+            print('-----------------------')
             print("The final best hyperparameters:")
             f.write("The final best hyperparameters:\n")
             for index, hparam_name in enumerate(autoft.hparams_name_list):
